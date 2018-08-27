@@ -26,8 +26,10 @@
         if Seq.isEmpty seq then raise SeqEmpty
         else Seq.fold (fun acc e -> if cmp e acc then e else acc) (Seq.head seq) (Seq.tail seq)
 
-    // List
-
+    /// <summary>
+    /// Returns a sequence containing all possible combinations of choices.
+    /// </summary>
+    /// <param name="lst">A list of choices to take one after another. Each element is a sequence containing all possibilities for the current choice.</param>
     let rec all_choices_combination lst =
         match lst with
         | [] -> Seq.singleton []
@@ -35,6 +37,8 @@
             let res = all_choices_combination lst
             let res = Seq.map (fun lst -> Seq.map (fun v -> v::lst) h) res
             Seq.concat res
+
+     // List
 
     let list_set i e lst =
         List.mapi (fun i' e' -> if i = i' then e else e') lst

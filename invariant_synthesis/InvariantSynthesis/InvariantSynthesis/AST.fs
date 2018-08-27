@@ -36,11 +36,13 @@
 
     type ConstValue =
         | ConstVoid // Only used for actions that return nothing
-        | ConstBool of bool // Type name, value
+        | ConstBool of bool
         | ConstInt of string * int // Type name, value
-        | ConstEnumerated of string * string
+        | ConstEnumerated of string * string // Type name, value
 
-    (* No side effects *)
+    /// <summary>
+    /// Describes an expression without any side effect.
+    /// </summary>
     type Value =
         | ValueConst of ConstValue
         | ValueStar of Type
@@ -58,7 +60,9 @@
         | ValueImply of Value * Value
         | ValueInterpreted of string * List<Value>
 
-    (* With side effects *)
+    /// <summary>
+    /// Describes an expression with possible side effects.
+    /// </summary>
     type Expression =
         | ExprConst of ConstValue
         | ExprStar of Type
@@ -81,6 +85,9 @@
         | Hole of VarDecl
         | Expr of Expression
 
+    /// <summary>
+    /// Describes a statement. This AST is the closest to the actual IVy code, but not the more conveninent for analysis.
+    /// </summary>
     type Statement =
         | NewBlock of List<VarDecl> * List<Statement>
         | Expression of Expression
@@ -101,14 +108,19 @@
     type InvariantDecl = { Module: string; Formula: Value }
     type AxiomDecl = InvariantDecl
 
+    /// <summary>
+    /// Not used anymore since interpreted actions are considered as star expressions (non-determinitic choices).
+    /// </summary>
     [<NoEquality;NoComparison>]
     type InterpretedActionDecl<'a,'b> = { Name: string; Args: List<Type>; Output: Type; Effect: 'a -> 'b -> List<ConstValue> -> ConstValue ; Representation: RepresentationInfos }
 
+    /// <summary>
+    /// Represents a 'module', but not in the IVy sense of the word. Here a module is just a collection of types, functions, actions, invariants...
+    /// </summary>
     [<NoEquality;NoComparison>]
     type ModuleDecl<'a,'b> =
         { Name: string; Types: List<TypeDecl>; Funs: List<FunDecl>; InterpretedActions: List<InterpretedActionDecl<'a,'b>>; Exports: List<string*string>;
             Actions: List<ActionDecl>; Macros: List<MacroDecl>; Invariants: List<InvariantDecl>; Axioms: List<AxiomDecl> }
-
 
     let empty_module name =
         {
@@ -131,12 +143,19 @@
     let name_separator = '.'
     let action_variant_char = ':'
 
+    /// <summary>
+    /// An action is designated with a string composed of two components: its name (itself composed of a basename and an individual name) and its variant.
+    /// If the variant is empty, it refers to the current implementation of the action. Otherwise, it refers to an additional implementation, like "after" or "before".
+    /// </summary>
     let variant_action_name name variant =
         if variant = ""
         then name
         else sprintf "%s%c%s" name action_variant_char variant
 
-    let decompose_action_name (name:string) =
+    /// <summary>
+    /// Returns a tuple of the form (name,variant).
+    /// </summary>
+    let decompose_variant_action_name (name:string) =
         let i = name.LastIndexOf(action_variant_char)
         if i >= 0
         then (name.Substring(0,i), name.Substring(i+1))
@@ -159,6 +178,9 @@
     let local_name name =
         sprintf "%s%s" local_var_prefix name
 
+    /// <summary>
+    /// Every element is designated with a string composed of two components: its basename (the name of its ancestors) and its individual name.
+    /// </summary>
     let compose_name base_name name =
         if name = ""
         then base_name
@@ -166,7 +188,9 @@
         then name
         else sprintf "%s%c%s" base_name name_separator name
 
-    // Decompose a name and returns a tuple of the form (parent_name,last_name)
+    /// <summary>
+    /// Returns a tuple of the form (parent name, last name).
+    /// </summary>
     let decompose_name (name:string) =
         let i = name.LastIndexOf(name_separator)
         if i >= 0
@@ -209,7 +233,7 @@
         List.find (fun (decl:ActionDecl) -> decl.Name = str) m.Actions
 
     let find_action_any_variant (m:ModuleDecl<'a,'b>) str =
-        List.find (fun (decl:ActionDecl) -> let (str',_) = decompose_action_name decl.Name in str'=str) m.Actions
+        List.find (fun (decl:ActionDecl) -> let (str',_) = decompose_variant_action_name decl.Name in str'=str) m.Actions
 
     let find_interpreted_action (m:ModuleDecl<'a,'b>) str =
         List.find (fun (decl:InterpretedActionDecl<'a,'b>) -> decl.Name = str) m.InterpretedActions
@@ -322,7 +346,7 @@
         | ConstInt (s,_) -> Uninterpreted s
         | ConstEnumerated (s,_) -> Enumerated s
 
-    // Note: In Marking.fs, operations like Set.contains or Set.remove doesn't take value_equal into account.
+    // Note: should not be changed: operations like Set.contains or Set.remove doesn't take this function into account.
     let value_equal v1 v2 = v1=v2
 
     let type_equal t1 t2 = t1=t2

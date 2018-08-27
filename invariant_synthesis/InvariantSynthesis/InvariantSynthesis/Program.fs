@@ -216,7 +216,7 @@ let main argv =
         Determinization.determinize_action (MinimalAST.module2minimal md action) action
     // Compute `init` actions
     let all_actions =
-        List.fold (fun acc (a:AST.ActionDecl) -> let (name,_) = AST.decompose_action_name a.Name in Set.add name acc) Set.empty md.Actions
+        List.fold (fun acc (a:AST.ActionDecl) -> let (name,_) = AST.decompose_variant_action_name a.Name in Set.add name acc) Set.empty md.Actions
     let init_actions = Set.filter (fun str -> let (_,name) = AST.decompose_name str in name = "init") all_actions
     let action_is_child str1 str2 =
         let (mod1,_) = AST.decompose_name str1

@@ -9,6 +9,9 @@
 
     type ConstValue = AST.ConstValue
 
+    /// <summary>
+    /// Describes an expression without side effect.
+    /// </summary>
     type Value =
         | ValueConst of ConstValue
         | ValueStar of Type
@@ -22,6 +25,11 @@
         | ValueForall of VarDecl * Value
         | ValueInterpreted of string * List<Value>
 
+    /// <summary>
+    /// Descirbes a statement.
+    /// This AST is minimal and does not contains any expression with side effect, so it is more conveninent to use for analysis.
+    /// However, this AST can contain non-deterministic operations.
+    /// </summary>
     type Statement =
         | AtomicGroup of List<Statement>
         | NewBlock of List<VarDecl> * List<Statement>
@@ -162,7 +170,12 @@
         next_var := (!next_var) + 1
         AST.generated_name res
 
-    // Return a list of var decls & statements (var assignemnts) & a minimal value
+    /// <summary>
+    /// Returns a list of fresh var decls, some assignments for these variables, and a value in the MinimalAST format
+    /// </summary>
+    /// <param name="m">The module from which the expression is issued</param>
+    /// <param name="dico_types">A dictionnary that associates a type to each variable</param>
+    /// <param name="e">The expression to convert</param>
     let rec expr2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) dico_types (e:AST.Expression) =
         let new_var_assign v dico_types =
             let tmp_name = new_tmp_var ()
@@ -248,6 +261,13 @@
 
     type SpecificationsPolicy = Normal | Inverse | Ignore |InverseIgnore
 
+    /// <summary>
+    /// Converts a statement in the format AST to a statement in the format MinimalAST
+    /// </summary>
+    /// <param name="m">The module from which the statement is issued</param>
+    /// <param name="dico_types">A dictionnary that associates a type to each variable</param>
+    /// <param name="s">The statement to convert</param>
+    /// <param name="s">The policy to apply towards the 'Require' and 'Ensure' keywords</param>
     let statement2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) dico_types (s:AST.Statement) spec_policy =
         let packIfNecessary decls sts =
             if List.length sts = 1 && List.isEmpty decls
@@ -325,11 +345,16 @@
         let (decls, sts) = aux dico_types s
         packIfNecessary decls sts
 
+    /// <summary>
+    /// Converts a module in the format AST to a module in the format MinimalAST.
+    /// </summary>
+    /// <param name="m">The module to convert</param>
+    /// <param name="main_action">The name of the main action (that is, the action being executed first)</param>
     let module2minimal<'a,'b> (m:AST.ModuleDecl<'a,'b>) main_action =
-        //reinit_tmp_vars () // Note: be carefull with it
+        //reinit_tmp_vars ()
 
         let all_actions =
-            List.fold (fun acc (a:AST.ActionDecl) -> let (name,_) = AST.decompose_action_name a.Name in Set.add name acc) Set.empty m.Actions
+            List.fold (fun acc (a:AST.ActionDecl) -> let (name,_) = AST.decompose_variant_action_name a.Name in Set.add name acc) Set.empty m.Actions
 
         let convert_action acc name =
             let (args, output) =

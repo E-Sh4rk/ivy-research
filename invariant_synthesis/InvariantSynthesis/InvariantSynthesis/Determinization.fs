@@ -2,7 +2,11 @@
 
     open MinimalAST
 
-    let rec deter_value (md:ModuleDecl<'a,'b>) v : List<VarDecl> * List<Value> * Value = // new args needed, new assumptions needed, value
+    /// <summary>
+    /// Determinize a value in the format MinimalAST (the new value will still be in the format MinimalAST, but without any non-deterministic operation).
+    /// Returns a tuple of the form (new fresh arguments needed in the current action, new assumptions needed on these arguments, new deterministic value).
+    /// </summary>
+    let rec deter_value (md:ModuleDecl<'a,'b>) v : List<VarDecl> * List<Value> * Value =
         let fail_if_assumptions_depend_on ass name =
             if List.exists (fun a -> Set.contains name (free_vars_of_value a)) ass
             then failwith "Can't determinize action (new fresh function must be introduced)!"
@@ -61,6 +65,12 @@
         | [st] -> st
         | sts -> NewBlock([],sts)
 
+    /// <summary>
+    /// Determinizes a statement in the format MinimalAST (the new statement will still be in the format MinimalAST, but without any non-deterministic operation).
+    /// </summary>
+    /// <param name="md">The module from which is issued the statement</param>
+    /// <param name="das">Some modified (=already determinized) actions. Actions in das will be considered instead of actions in the module md.</param>
+    /// <param name="st">The statement to convert.</param>
     let rec deter_st (md:ModuleDecl<'a,'b>) (das:List<ActionDecl>) st : List<VarDecl> * List<Statement> * List<ActionDecl> =
         match st with
         | AtomicGroup sts ->
@@ -127,12 +137,17 @@
             let ass = List.map (fun a -> Assume a) ass
             (ds, ass@[Assume v], das)
                 
-    and deter_sts (md:ModuleDecl<'a,'b>) (det_actions:List<ActionDecl>) sts =
+    and deter_sts (md:ModuleDecl<'a,'b>) (das:List<ActionDecl>) sts =
         let aux (ds, sts, das) st =
             let (ds', sts', das) = deter_st md das st
             (ds@ds', sts@sts', das)
-        List.fold aux ([],[],det_actions) sts
+        List.fold aux ([],[],das) sts
 
+    /// <summary>
+    /// Determinizes an action.
+    /// </summary>
+    /// <param name="md">The module from which is issued the action.</param>
+    /// <param name="name">The full name of the action.</param>
     let determinize_action (md:ModuleDecl<'a,'b>) name =
         let action = find_action md name
         let (ds, sts, das) = deter_st md [] action.Content
