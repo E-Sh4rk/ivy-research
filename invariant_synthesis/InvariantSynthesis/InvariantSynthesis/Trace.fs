@@ -3,8 +3,16 @@
     open MinimalAST
     open Model
 
-    type RuntimeData = Environment * Environment * bool // Env before, env after, successfully executed
+    /// <summary>
+    /// Represents runtime data about the execution of a statement:
+    /// the environment before the execution, the environment after the execution, a boolean indicating whether the statement was successfully executed or not
+    /// </summary>
+    type RuntimeData = Environment * Environment * bool
 
+    /// <summary>
+    /// Represents a log (a "trace") of the execution of a statement.
+    /// Contains info about the statement and runtime data.
+    /// </summary>
     type TrStatement =
         | TrAtomicGroup of RuntimeData * List<TrStatement>
         | TrNewBlock of RuntimeData * List<VarDecl> * List<TrStatement>

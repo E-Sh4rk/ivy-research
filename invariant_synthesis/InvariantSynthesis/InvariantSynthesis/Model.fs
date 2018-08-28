@@ -3,7 +3,10 @@
     (* TYPES TO DESCRIBE (FINITE) MODELS AND ENVIRONMENTS *)
     open AST
 
-    type BoundConstraint = string * int // For custom types, the number of elements - 1
+    /// <summary>
+    /// Represents a constraint on the cardinality of an uninterpreted sort. Format: (type name, number of elements - 1).
+    /// </summary>
+    type BoundConstraint = string * int
     type FunConstraint = string * List<ConstValue> * ConstValue
     type VarConstraint = string * ConstValue
 
@@ -12,15 +15,33 @@
         | Function of FunConstraint
         | Variable of VarConstraint
 
+    /// <summary>
+    /// Partial representation of a state as a list of constraints. It is mainly used when parsing  constraints before converting it into an environment.
+    /// </summary>
     type Model = { b : List<BoundConstraint> ; f : List<FunConstraint>; v : List<VarConstraint> }
+    /// <summary>
+    /// Partial representation of a state as a list of constraints. It is mainly used when parsing  constraints before converting it into an environment.
+    /// </summary>
     type Model' = List<Constraint>
 
+    /// <summary>
+    /// Informations on the types.
+    /// For now, it only associates to each uninterpreted sort its cardinality-1.
+    /// </summary>
+    type TypeInfos = Map<string, int>
 
-    type TypeInfos = Map<string, int> // For now: only contains bounds for each type
-
+    /// <summary>
+    /// A valuation for functions.
+    /// </summary>
     type FunEnv = Map<string * List<ConstValue>, ConstValue>
+    /// <summary>
+    /// A valuation for variables.
+    /// </summary>
     type VarEnv = Map<string, ConstValue>
 
+    /// <summary>
+    /// A valuation for all functions/variables.
+    /// </summary>
     type Environment = { f : FunEnv; v : VarEnv }
 
     type ModuleDecl = ModuleDecl<TypeInfos,Environment>
@@ -31,6 +52,10 @@
     type MacroDecls = Map<string, MacroDecl>
     type InterpretedDecls = Map<string, InterpretedActionDecl>
     
+    /// <summary>
+    /// Contains information about declared elements such as functions, variables or macros.
+    /// Useful when printing some formulas.
+    /// </summary>
     [<NoEquality;NoComparison>]
     type Declarations = { f : FunDecls; v : VarDecls; m : MacroDecls; i : InterpretedDecls; }
 
@@ -49,6 +74,9 @@
     let add_var_declaration (d:VarDecl) (ds:Declarations) =
         { ds with v=Map.add d.Name d ds.v }
 
+    /// <summary>
+    /// Returns all possible values of a type.
+    /// </summary>
     let all_values types infos data_type =
         match data_type with
         | Void -> Seq.singleton ConstVoid
@@ -61,6 +89,9 @@
             | EnumeratedTypeDecl lst -> List.toSeq (List.map (fun str -> ConstEnumerated (s,str)) lst)
             | _ -> failwith "Not an enumerated type!"
 
+    /// <summary>
+    /// Returns all possible values of a tuple of types.
+    /// </summary>
     let all_values_ext types infos lst =
         let lst = List.map (all_values types infos) lst
         Helper.all_choices_combination lst
@@ -68,7 +99,10 @@
     let cardinal infos =
         Map.fold (fun acc _ nb -> acc + nb) 0 infos 
 
-    // Note: If some constraints are contradictory, the last one has the last word
+    /// <summary>
+    /// Convert a list of constraints to an environment.
+    /// Note: If some constraints are contradictory, the last one has the last word.
+    /// </summary>
     let constraints_to_env (m:ModuleDecl) cs : (TypeInfos * Environment) =
         // Type infos
         // Init

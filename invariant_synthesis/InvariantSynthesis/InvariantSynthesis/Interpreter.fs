@@ -67,6 +67,13 @@
     exception AssertionFailed of Model.Environment * Value
     exception AssumptionFailed of Model.Environment * Value
 
+    /// <summary>
+    /// Returns a new environment after entering a new block.
+    /// </summary>
+    /// <param name="m">Current module</param>
+    /// <param name="env">Current environment</param>
+    /// <param name="lvars">New local var names</param>
+    /// <param name="lvalues">New local var values</param>
     let enter_new_block (m:ModuleDecl) (env:Model.Environment) lvars lvalues : Model.Environment =
         let add_decl acc (decl:VarDecl) v =
             match v with
@@ -74,6 +81,12 @@
             | Some v -> Map.add decl.Name v acc
         {env with v=List.fold2 add_decl env.v lvars lvalues }
 
+    /// <summary>
+    /// Returns a new environment after leaving the current block.
+    /// </summary>
+    /// <param name="env">Current environment</param>
+    /// <param name="lvars">Local var names of the current block</param>
+    /// <param name="old_env">Former environment, before entering the current block</param>
     let leave_block (env:Model.Environment) lvars (old_env:Model.Environment) : Model.Environment =
         let rollback acc (decl:VarDecl) =
             match Map.tryFind decl.Name old_env.v with
