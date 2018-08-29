@@ -6,18 +6,38 @@
 
     type FunMarks = Set<string * List<ConstValue>>
     type VarMarks = Set<string>
-    type DiffConstraint = Set<ConstValue * ConstValue> // We don't impose disequality if is not necessary
+    type DiffConstraint = Set<ConstValue * ConstValue>
 
+    /// <summary>
+    /// A set of marks:
+    /// - f contains marks that point to some constraints of the form fun(arg)=concrete_val
+    /// - v contains marks that point to some constraints of the form var=concrete_val
+    /// - d contains marks that point to some constraints of the form concrete_val<>concrete_val
+    /// </summary>
     type Marks = { f : FunMarks; v : VarMarks; d: DiffConstraint }
 
-    // Indicate for each umark which arguments are potentially model-dependent
+    /// <summary>
+    /// Type used to associate to each model-dependant FunMark ('um.f' below) the subset of their arguments that are marked in an universally quantified way.
+    /// Every model-dependant FunMark should have at least one such argument (otherwise it would not be model-dependant).
+    /// </summary>
     type UniversalFunMarksInfo = Map<string * List<ConstValue>,Set<int>>
-    type AdditionalData = { md : bool ; ufmi : UniversalFunMarksInfo } // md means model-dependent
+    /// <summary>
+    /// Additional data about the markings:
+    /// 'md' means 'model-dependant' and 'ufmi' contains additional data about the model dependant FunMarks.
+    /// </summary>
+    type AdditionalData = { md : bool ; ufmi : UniversalFunMarksInfo }
+
+    /// <summary>
+    /// A config is a tuple (m,um,ad) where:
+    /// - 'm' contains the list of non-model-dependant marks
+    /// - 'um' contains the list of model-dependant marks
+    /// - 'ad' contains additional data
+    /// </summary>
+    type Config = Marks * Marks * AdditionalData
 
     let empty_marks = { f = Set.empty; v = Set.empty ; d = Set.empty }
     let empty_ad = { md = false ; ufmi = Map.empty }
-    let empty_config = (empty_marks, empty_marks, empty_ad)
-    // A config (m,um,ad) is composed of alist of marks m, a list of model-dependent marks um, additional data ad
+    let empty_config:Config = (empty_marks, empty_marks, empty_ad)
 
     let is_model_dependent_type t =
         match t with
@@ -33,6 +53,9 @@
         | AST.ConstInt _ -> true
         | AST.ConstEnumerated _ -> false
 
+    /// <summary>
+    /// Returns all potential disequalities among the elements of a type.
+    /// </summary>
     let all_potential_diffs_for_type types infos t =
         let couples = Model.all_values_ext types infos [t;t]
         let couples = Seq.map Helper.lst_to_couple couples
@@ -127,7 +150,6 @@
             Set.filter (fun cfg' -> not (is_strictly_included cfg cfg')) acc
         Set.fold remove_worse cfgs cfgs
 
-    exception InvalidOperation
     let bool_of_cv cv =
         match cv with
         | AST.ConstBool b -> b
@@ -141,7 +163,14 @@
             let res = Set.map (fun cfg -> Set.map (fun cfg' -> config_union cfg cfg') cfgs) res
             remove_worst_configs (Set.unionMany res)
 
-    // uvar: variables that can browse an arbitrary large range (depending on the model)
+    /// <summary>
+    /// Compute many different configs for a value. Each config is sufficient to ensure that the evaluation of the value v is always the same.
+    /// </summary>
+    /// <param name="mdecl">The module from which is issued the value v</param>
+    /// <param name="infos">Information about the types</param>
+    /// <param name="env">The current environment (=state)</param>
+    /// <param name="uvar">The list of variables that are currently universally quantified, or more generally, that can take a value in an arbitrary large range</param>
+    /// <param name="v">The value on which we compute the marks</param>
     let rec marks_for_value mdecl infos env uvar v : ConstValue * Set<Marks * Marks * AdditionalData> =
         let (v, cfgs) =
             match v with
@@ -255,7 +284,9 @@
 
     ////////////////////////////////////////////////////////////////////////////
 
-    // Some utility functions
+    /// <summary>
+    /// Same as Interpreter.leave_block, but for configs.
+    /// </summary>
     let config_leave_block (m,um,ad) lvars (old_m,old_um,_) =
         let marks_leave_block m old_m : Marks =
             let rollback acc (decl:VarDecl) =
@@ -265,6 +296,9 @@
             { m with v=List.fold rollback m.v lvars }
         (marks_leave_block m old_m, marks_leave_block um old_um, ad)
 
+    /// <summary>
+    /// Same as Interpreter.enter_new_block, but for configs.
+    /// </summary>
     let config_enter_block (m,um,ad) lvars =
         let marks_enter_block m : Marks =
             let rm acc (decl:VarDecl) = Set.remove decl.Name acc
@@ -283,6 +317,15 @@
 
     ////////////////////////////////////////////////////////////////////////////
 
+    /// <summary>
+    /// Backpropagate a config through a trace, so we have the corresponding config BEFORE the execution of the statements in the trace.
+    /// </summary>
+    /// <param name="mdecl">The module from which the trace is issued</param>
+    /// <param name="infos">Information about the types</param>
+    /// <param name="ignore_asserts">True if assertions must be ignored</param>
+    /// <param name="ignore_assumes">True if assumptions must be ignored</param>
+    /// <param name="tr">The trace containing the statements to go through</param>
+    /// <param name="cfg">The config to backpropagate</param>
     let rec marks_before_statement mdecl infos ignore_asserts ignore_assumes tr cfg =
         let rec aux group_trs cfg =
             if List.isEmpty group_trs then cfg
