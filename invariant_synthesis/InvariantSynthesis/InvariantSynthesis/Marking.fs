@@ -9,7 +9,7 @@
     type DiffConstraint = Set<ConstValue * ConstValue>
 
     /// <summary>
-    /// A set of marks:
+    /// Some marks:
     /// - f contains marks that point to some constraints of the form fun(arg)=concrete_val
     /// - v contains marks that point to some constraints of the form var=concrete_val
     /// - d contains marks that point to some constraints of the form concrete_val<>concrete_val

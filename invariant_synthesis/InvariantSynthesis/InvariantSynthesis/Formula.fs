@@ -9,13 +9,13 @@
         | ExistingFun of string * List<ConstValue>
 
     /// <summary>
-    /// Returns the invariant corresponding to the given set of marks.
+    /// Returns the invariant corresponding to the given marks.
     /// For convenience, the resulting invariant is not quantified, and the variables that must be quantified are returned separately.
     /// </summary>
     /// <param name="env">The environment (=state) to which the marks refer</param>
     /// <param name="mapping">A partial mapping from the concrete values to the wanted associated elements in the final formula</param>
     /// <param name="generalize">The set of concrete values to quantify on. Other concrete values will be left as is, are will be treated according to the given mapping.</param>
-    /// <param name="m">The set of marks.</param>
+    /// <param name="m">The marks</param>
     let formula_for_marks (env:Model.Environment) (mapping:int*Map<ConstValue,ValueAssociation>) (generalize:Set<ConstValue>) (m:Marking.Marks) =
 
         let var_name nb =

@@ -439,17 +439,26 @@
         aux v
 
     /// <summary>
+    /// Converts a MinimalAST value into a Z3Value.
+    /// The value must not need any context in order to be translated to Z3Value: it must be fully deterministic.
+    /// </summary>
+    /// <param name="mmd">The module from which is issued the value</param>
+    /// <param name="v">The value</param>
+    let minimal_formula_to_z3 (mmd:ModuleDecl<'a,'b>) v =
+        z3ctx2deterministic_formula (minimal_val2z3_val mmd v) false
+
+    /// <summary>
     /// Converts a list of MinimalAST values into a list of Z3Value.
     /// The values must not need any context in order to be translated to Z3Value: they must be fully deterministic.
     /// </summary>
     /// <param name="m">The module from which the values are issued</param>
     /// <param name="conj">The list of values to convert</param>
-    let conjectures_to_z3values<'a,'b> (m:ModuleDecl<'a,'b>) conj =
+    let minimal_formulas_to_z3<'a,'b> (m:ModuleDecl<'a,'b>) conj =
         List.fold
             (
                 fun acc v ->
                     try
-                        (z3ctx2deterministic_formula (minimal_val2z3_val m v) false)::acc
+                        (minimal_formula_to_z3 m v)::acc
                     with :? ValueNotAllowed -> printfn "Illegal axiom/conjecture ignored..." ; acc
             ) [] conj
 
@@ -461,7 +470,7 @@
     /// <param name="st">The statement</param>
     let weakest_precondition<'a,'b> (m:ModuleDecl<'a,'b>) f st =
 
-        let axioms = conjectures_to_z3values m (MinimalAST.axioms_decls_to_formulas m.Axioms)
+        let axioms = minimal_formulas_to_z3 m (MinimalAST.axioms_decls_to_formulas m.Axioms)
 
         let filter_axioms str =
             let is_necessary axiom =

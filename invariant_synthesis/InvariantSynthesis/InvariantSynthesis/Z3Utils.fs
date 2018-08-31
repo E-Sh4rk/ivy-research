@@ -50,9 +50,9 @@
     /// <summary>
     /// Aggregates new data about local variables and concrete values in a value.
     /// </summary>
-    /// <param name="args">The arguments of the action containing the value</param>
+    /// <param name="args">The arguments of the action containing the value (if any)</param>
     /// <param name="ctx">The global context</param>
-    /// <param name="lenum">Data about the local enumerations</param>
+    /// <param name="lenum">Data about local enumerations</param>
     /// <param name="v">The value to analyze</param>
     /// <param name="lvars">Data about local variables</param>
     /// <param name="cv_assoc">Data about concrete values</param>
@@ -83,20 +83,20 @@
     /// <summary>
     /// Retrieves new data about local variables and concrete values in a value.
     /// </summary>
-    /// <param name="args">The arguments of the action containing the value</param>
+    /// <param name="args">The arguments of the action containing the value (if any)</param>
     /// <param name="ctx">The global context</param>
-    /// <param name="lenum">Data about the enumerations</param>
+    /// <param name="lenum">Data about local enumerations</param>
     /// <param name="v">The value to analyze</param>
     let declare_lvars<'a,'b> args (ctx:ModuleContext) lenum v =
         declare_lvars_ext args ctx lenum v (Map.empty, [])
 
     /// <summary>
-    /// Aggregates data about a new enumeration.
+    /// Aggregates data about a new local enumeration.
     /// </summary>
     /// <param name="str">The name of the enumeration</param>
     /// <param name="vs">The possible values</param>
     /// <param name="ctx">The global context</param>
-    /// <param name="lenums">Data about the enumerations</param>
+    /// <param name="lenums">Data about other local enumerations</param>
     let declare_new_enumerated_type_ext<'a,'b> (str:string, vs) (ctx:ModuleContext) lenums =
         let sort = ctx.Context.MkEnumSort (str, List.toArray vs) :> Sort
         Map.add str sort lenums
@@ -124,7 +124,7 @@
     /// </summary>
     /// <param name="ctx">The global context</param>
     /// <param name="lvars">Data about local vars</param>
-    /// <param name="lenums">Data about enumerations</param>
+    /// <param name="lenums">Data about local enumerations</param>
     /// <param name="v">The value</param>
     let build_value<'a,'b> (ctx:ModuleContext) lvars lenums (v:Z3Value) =
 
