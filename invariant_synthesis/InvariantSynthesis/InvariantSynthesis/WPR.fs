@@ -4,6 +4,9 @@
 
     open MinimalAST
 
+    /// <summary>
+    /// Represents a value/formula that can easily be passed to the Z3 solver.
+    /// </summary>
     type Z3Value =
         | Z3Const of ConstValue
         | Z3Var of string
@@ -18,9 +21,14 @@
         | Z3Exists of VarDecl * Z3Value
         | Z3Hole // Used for contexts
 
+    /// <summary>
+    /// Represents a tuple (c,v) where 'c' is a context (a Z3Value containing a Z3Hole) and 'v' a value that can be used inside the context 'c'.
+    /// </summary>
     type ValueContext = Z3Value * Z3Value
-    // (context for using the value, value)
 
+    /// <summary>
+    /// Yet another AST for representing a statement, this one is convenient for computing weakest preconditions.
+    /// </summary>
     type Statement =
         | NewBlock of List<VarDecl> * List<Statement>
         | VarAssign of string * ValueContext
@@ -191,7 +199,11 @@
             | Z3Hole -> Z3Hole
         aux f
 
-    // We convert the AST to a simpler one & we rename each local variable in order for them to be unique
+    /// <summary>
+    /// Converts a MinimalAST value into a Z3Value. Each local variable in the value is also renamed in order to be unique.
+    /// </summary>
+    /// <param name="m">The module from which the value is issued</param>
+    /// <param name="v">The value to convert</param>
     let minimal_val2z3_val (m:ModuleDecl<'a,'b>) v =
         let rec aux v =
             match v with
@@ -257,6 +269,12 @@
 
     exception ValueNotAllowed
 
+    /// <summary>
+    /// Combines a ValueContext into a formula (the value is directly injected in the context).
+    /// </summary>
+    /// <param name="ctx">The context</param>
+    /// <param name="v">The value (must be a formula, otherwise this operation makes no sense)</param>
+    /// <param name="allow_contexts">If false, ctx must be an empty context</param>
     let z3ctx2deterministic_formula (ctx,v) allow_contexts =
         if allow_contexts
         then replace_holes_with v ctx
@@ -264,7 +282,12 @@
         then raise ValueNotAllowed
         else v
 
-    // We convert the AST to a simpler one & we rename each local variable in order for them to be unique
+    /// <summary>
+    /// Converts a MinimalAST statement into a WPR statement. Also rename variables according to the given mapping. Each local variable is also renamed in order to be unique.
+    /// </summary>
+    /// <param name="m">The module from which is issued the statement.</param>
+    /// <param name="renaming">A mapping for the variables that we want to rename.</param>
+    /// <param name="st">The statement to convert.</param>
     let minimal_stat2wpr_stat<'a,'b> (m:ModuleDecl<'a,'b>) renaming st =
         let minimal_val2z3_val = minimal_val2z3_val m
 
@@ -329,6 +352,12 @@
 
     type ActionDecl = { Name: string; Args: List<VarDecl>; Output: VarDecl; Content: Statement }
 
+    /// <summary>
+    /// Converts a MinimalAST ActionDecl into a WPR ActionDecl.
+    /// </summary>
+    /// <param name="m">The module from which is issued the action</param>
+    /// <param name="action">The action to convert</param>
+    /// <param name="rename_args">Whether or not the arguments of the action should be renamed in order to be unique</param>
     let minimal_action2wpr_action<'a,'b> (m:ModuleDecl<'a,'b>) action rename_args =
         let action = find_action m action
 
@@ -409,7 +438,30 @@
             | Z3Hole -> Z3Hole
         aux v
 
-    let weakest_precondition<'a,'b> (m:ModuleDecl<'a,'b>) axioms f st =
+    /// <summary>
+    /// Converts a list of MinimalAST values into a list of Z3Value.
+    /// The values must not need any context in order to be translated to Z3Value: they must be fully deterministic.
+    /// </summary>
+    /// <param name="m">The module from which the values are issued</param>
+    /// <param name="conj">The list of values to convert</param>
+    let conjectures_to_z3values<'a,'b> (m:ModuleDecl<'a,'b>) conj =
+        List.fold
+            (
+                fun acc v ->
+                    try
+                        (z3ctx2deterministic_formula (minimal_val2z3_val m v) false)::acc
+                    with :? ValueNotAllowed -> printfn "Illegal axiom/conjecture ignored..." ; acc
+            ) [] conj
+
+    /// <summary>
+    /// Computes the weakest precondition of a formula before a statement.
+    /// </summary>
+    /// <param name="m">The module from which are issued the statement</param>
+    /// <param name="f">The formula</param>
+    /// <param name="st">The statement</param>
+    let weakest_precondition<'a,'b> (m:ModuleDecl<'a,'b>) f st =
+
+        let axioms = conjectures_to_z3values m (MinimalAST.axioms_decls_to_formulas m.Axioms)
 
         let filter_axioms str =
             let is_necessary axiom =
@@ -462,20 +514,17 @@
                 replace_holes_with f ctx
             | Abort -> Z3Const (AST.ConstBool false)
         simplify_z3_value (aux f st)
-   
-    let conjectures_to_z3values<'a,'b> (m:ModuleDecl<'a,'b>) conj =
-        List.fold
-            (
-                fun acc v ->
-                    try
-                        (z3ctx2deterministic_formula (minimal_val2z3_val m v) false)::acc
-                    with :? ValueNotAllowed -> printfn "Illegal axiom/conjecture ignored..." ; acc
-            ) [] conj
 
+    /// <summary>
+    /// Computes the weakest precondition of a formula before an action.
+    /// </summary>
+    /// <param name="m">The module from which the action is issued</param>
+    /// <param name="f">The formula</param>
+    /// <param name="action">The action name</param>
+    /// <param name="negate">Indicates whether the result must be negated or not. If set to true, the arguments will not be renamed nor quantified in the formula so their value can be collected.</param>
     let wpr_for_action<'a,'b> (m:ModuleDecl<'a,'b>) f action negate =
-        let action = minimal_action2wpr_action m action (not negate) // If negate is true, we must not rename args since the args of the function will be colloected later.
-        let axioms = conjectures_to_z3values m (MinimalAST.axioms_decls_to_formulas m.Axioms)
-        let res = weakest_precondition m axioms f action.Content
+        let action = minimal_action2wpr_action m action (not negate)
+        let res = weakest_precondition m f action.Content
         if not negate
         then
             List.fold (fun acc (d:VarDecl) -> Z3Forall (d,acc)) res action.Args
