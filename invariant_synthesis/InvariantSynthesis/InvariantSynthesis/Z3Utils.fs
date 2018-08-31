@@ -11,6 +11,9 @@
         | AST.Uninterpreted str -> Map.find str sorts :> Sort
         | AST.Enumerated str -> Map.find str sorts :> Sort
 
+    /// <summary>
+    /// A Z3 global context. Defines global elements in a module and allow us to find them easily.
+    /// </summary>
     [<NoComparison>]
     type ModuleContext =
         {
@@ -19,6 +22,10 @@
             Funs: Map<string, FuncDecl>
         }
 
+    /// <summary>
+    /// Builds a global context corresponding to the given module.
+    /// </summary>
+    /// <param name="m">The module</param>
     let build_context<'a,'b> (m:AST.ModuleDecl<'a,'b>) =
         let ctx = new Context()
         let sorts = ref Map.empty 
@@ -40,17 +47,26 @@
     let name_of_constint (t,i) =
         sprintf "%s%c%i" t AST.name_separator i
 
-    let declare_lvars_ext<'a,'b> args (ctx:ModuleContext) lenum v (lvars,z3concrete_map) =
+    /// <summary>
+    /// Aggregates new data about local variables and concrete values in a value.
+    /// </summary>
+    /// <param name="args">The arguments of the action containing the value</param>
+    /// <param name="ctx">The global context</param>
+    /// <param name="lenum">Data about the local enumerations</param>
+    /// <param name="v">The value to analyze</param>
+    /// <param name="lvars">Data about local variables</param>
+    /// <param name="cv_assoc">Data about concrete values</param>
+    let declare_lvars_ext<'a,'b> args (ctx:ModuleContext) lenum v (lvars,cv_assoc) =
         
-        let add_civ (lvars,z3concrete_map) (t,i) =
+        let add_civ (lvars,cv_assoc) (t,i) =
             let name = name_of_constint (t,i)
             let sort = Map.find t ctx.Sorts
             if not (Map.containsKey name lvars)
             then
                 let lvars = Map.add name (ctx.Context.MkConstDecl(name,sort)) lvars
-                let z3concrete_map = (name, (t,i))::z3concrete_map
-                (lvars,z3concrete_map)
-            else (lvars,z3concrete_map)
+                let cv_assoc = (name, (t,i))::cv_assoc
+                (lvars,cv_assoc)
+            else (lvars,cv_assoc)
 
         let add_fv acc name =
             if Map.containsKey name acc
@@ -60,13 +76,27 @@
                 let sort = sort_of_type ctx.Context (Helper.merge_maps ctx.Sorts lenum) decl.Type
                 Map.add name (ctx.Context.MkConstDecl(name,sort)) acc
         
-        let (lvars,z3concrete_map) = Set.fold add_civ (lvars,z3concrete_map) (const_int_in_value v)
+        let (lvars,cv_assoc) = Set.fold add_civ (lvars,cv_assoc) (const_int_in_value v)
         let lvars = Set.fold add_fv lvars (free_vars_of_value v)
-        (lvars,z3concrete_map)
+        (lvars,cv_assoc)
 
+    /// <summary>
+    /// Retrieves new data about local variables and concrete values in a value.
+    /// </summary>
+    /// <param name="args">The arguments of the action containing the value</param>
+    /// <param name="ctx">The global context</param>
+    /// <param name="lenum">Data about the enumerations</param>
+    /// <param name="v">The value to analyze</param>
     let declare_lvars<'a,'b> args (ctx:ModuleContext) lenum v =
         declare_lvars_ext args ctx lenum v (Map.empty, [])
 
+    /// <summary>
+    /// Aggregates data about a new enumeration.
+    /// </summary>
+    /// <param name="str">The name of the enumeration</param>
+    /// <param name="vs">The possible values</param>
+    /// <param name="ctx">The global context</param>
+    /// <param name="lenums">Data about the enumerations</param>
     let declare_new_enumerated_type_ext<'a,'b> (str:string, vs) (ctx:ModuleContext) lenums =
         let sort = ctx.Context.MkEnumSort (str, List.toArray vs) :> Sort
         Map.add str sort lenums
@@ -89,6 +119,13 @@
                     Map.find t ctx.Sorts :?> EnumSort
             ctx.Context.MkConst (Array.find (fun (fd:FuncDecl) -> fd.Name.ToString() = str) esort.ConstDecls)
 
+    /// <summary>
+    /// Builds a Z3 Expression from a Z3Value.
+    /// </summary>
+    /// <param name="ctx">The global context</param>
+    /// <param name="lvars">Data about local vars</param>
+    /// <param name="lenums">Data about enumerations</param>
+    /// <param name="v">The value</param>
     let build_value<'a,'b> (ctx:ModuleContext) lvars lenums (v:Z3Value) =
 
         let rec aux qvars v =
@@ -142,6 +179,12 @@
     [<NoComparison>]
     type SolverResult = UNSAT | UNKNOWN | SAT of Model
 
+    /// <summary>
+    /// Checks whether a Z3 expression is satisfiable or not.
+    /// </summary>
+    /// <param name="ctx">The global context</param>
+    /// <param name="e">The expression</param>
+    /// <param name="timeout">Timeout</param>
     let check (ctx:ModuleContext) (e:Expr) (timeout:int) =
         let s = ctx.Context.MkSolver()
         s.Set ("timeout", uint32(timeout))
@@ -162,6 +205,13 @@
     let is_false (e:Expr) =
         e.FuncDecl.Name.ToString() = "false"
 
+    /// <summary>
+    /// Checks whether a disjunction of Z3 expressions is satisfiable. If satisfiable, also returns the name of a satisfiable Z3 expression.
+    /// </summary>
+    /// <param name="ctx">The global context</param>
+    /// <param name="e">Some axioms that must be satisfied in every expression</param>
+    /// <param name="es">The list of named Z3 expressions</param>
+    /// <param name="timeout">Timeout</param>
     let check_disjunction (ctx:ModuleContext) (e:Expr) (es:List<string*Expr>) (timeout:int) =
 
         let s = ctx.Context.MkSolver()
@@ -191,6 +241,14 @@
         treat_exprs false es
         // TODO: Eventually, choose the one with the smallest model.
        
+    /// <summary>
+    /// Checks whether a conjunction of Z3 expressions is satisfiable. If not, also returns a minimal unSAT core.
+    /// NOTE: With the version of Z3 currently used, the core returned is not minimal. Please use check_conjunction_fix instead.
+    /// </summary>
+    /// <param name="ctx">The global context</param>
+    /// <param name="e">Some axioms that must be satisfied</param>
+    /// <param name="es">The list of named Z3 expressions</param>
+    /// <param name="timeout">Timeout</param>
     let check_conjunction (ctx:ModuleContext) (e:Expr) (es:List<string*Expr>) (timeout:int) =
         let normalize_name str =
             AST.generated_name (sprintf "__unsatcore__%s" str)
@@ -221,6 +279,9 @@
         | _ -> failwith "Solver returned an unknown status..."
 
     // TODO: Remove that function when a future (working) version of Z3 will take into account 'core.minimize'
+    /// <summary>
+    /// See description of check_conjunction.
+    /// </summary>
     let check_conjunction_fix (ctx:ModuleContext) (e:Expr) (es:List<string*Expr>) (timeout:int) =
         
         match check_conjunction ctx e es timeout with
@@ -257,8 +318,17 @@
         let univs = List.map (fun s -> model.SortUniverse s) sorts
         Helper.all_choices_combination univs
 
+    /// <summary>
+    /// Converts a Z3 model into a model.
+    /// </summary>
+    /// <param name="m">The module from which the Z3 model is issued</param>
+    /// <param name="ctx">The global context</param>
+    /// <param name="args">The arguments of the main action. All (and only) these local variables will be set in the returned model.</param>
+    /// <param name="lvars">Data about local variables of the Z3 model.</param>
+    /// <param name="cv_assoc">Data about concrete values in the Z3 model.</param>
+    /// <param name="model">The Z3 model.</param>
     let z3model_to_ast_model<'a,'b> (m:AST.ModuleDecl<'a,'b>) (ctx:ModuleContext) args lvars
-        z3concrete_map (model:Model)
+        cv_assoc (model:Model)
         : (Model.TypeInfos * Model.Environment) =
 
         let all_decls = model.Decls
@@ -276,7 +346,7 @@
                 let fname = e.FuncDecl.Name.ToString()
                 Map.add fname cv const_cv_map
             else const_cv_map
-        let const_cv_map = List.fold treat_concrete Map.empty z3concrete_map
+        let const_cv_map = List.fold treat_concrete Map.empty cv_assoc
 
         let treat_type const_cv_map (t:TypeDecl) =
             let sort = Map.find t.Name ctx.Sorts
