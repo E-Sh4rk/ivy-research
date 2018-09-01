@@ -102,6 +102,13 @@
         
         Z3Utils.check_conjunction_fix z3ctx z3e z3_es timeout
     
+    /// <summary>
+    /// Finds a counterexample for a given action and a list of conjectures.
+    /// </summary>
+    /// <param name="md">The AST module from which the formula is issued</param>
+    /// <param name="mmd">The corresponding MinimalAST module whose main action is the action to analyze</param>
+    /// <param name="action">The name of the action</param>
+    /// <param name="formulas">The conjectures to test</param>
     let find_counterexample_action md mmd action formulas =
         let axioms_conjectures = z3_formula_for_axioms_and_conjectures mmd
         let counterexample = ref None
@@ -122,6 +129,12 @@
         List.iter treat_formula formulas
         !counterexample
 
+    /// <summary>
+    /// Finds a counterexample for a list of actions and a list of conjectures.
+    /// </summary>
+    /// <param name="md">The AST module from which the formula is issued</param>
+    /// <param name="mmds">For each action, a tuple (name,mmd) where 'name' is the name of the action and 'mmd' the corresponding MinimalAST module</param>
+    /// <param name="formulas">The conjectures to test</param>
     let find_counterexample md mmds formulas =
         let (_,tmp_mmd) = (List.head (Map.toList mmds)) // We arbitrary take axioms and conjectures of the first mmd (they should be exactly the same for every mmd)
         let axioms_conjectures = z3_formula_for_axioms_and_conjectures tmp_mmd
@@ -165,6 +178,19 @@
     let terminating_or_failing_run_formula (mmd:MinimalAST.ModuleDecl<'a,'b>) action =
         WPR.wpr_for_action mmd (WPR.Z3Const (AST.ConstBool false)) action true
 
+    /// <summary>
+    /// Finds a potentially valid execution of a given action whose initial environment shares some constraints with another given environment.
+    /// </summary>
+    /// <param name="md">The AST module</param>
+    /// <param name="mmd">The corresponding MinimalAST module whose main action is the action to analyze</param>
+    /// <param name="env">The reference environment</param>
+    /// <param name="formula">The conjecture that is used to determine whether or not the run is valid</param>
+    /// <param name="action">The action to execute</param>
+    /// <param name="m">Some marks that defines which constraints of the given environment must be imposed</param>
+    /// <param name="all_actions">All the actions to consider when determinign whether or not the run is valid</param>
+    /// <param name="common_cvs">The concrete values that must be shared between the two environments</param>
+    /// <param name="prev_allowed">The valid executions previously found (in order to not find the same again)</param>
+    /// <param name="only_terminating_run">If true, it only search among executions that fully execute the action (and that does not terminate before because of a non-satisfied assumption)</param>
     let find_allowed_execution (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) formula
         action (m:Marking.Marks) all_actions common_cvs prev_allowed only_terminating_run =
 
@@ -190,6 +216,14 @@
         | UNSAT | UNKNOWN -> None
         | SAT (i,e) -> Some (i,e)
 
+    /// <summary>
+    /// Remove the marks that can be deduced from constraints imposed by other marks.
+    /// </summary>
+    /// <param name="md">The AST module</param>
+    /// <param name="mmd">A corresponding MinimalAST module (it does not matter which action is the main action)</param>
+    /// <param name="env">The environment</param>
+    /// <param name="m">The marks</param>
+    /// <param name="additional_marks">Some additional marks that must be considered but that must not be simplified</param>
     let simplify_marks (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) (env:Model.Environment) (m:Marking.Marks) (additional_marks:Marking.Marks) =
         let axioms_conjs = z3_formula_for_axioms_and_conjectures mmd
         let are_marks_necessary (m:Marking.Marks) (m':Marking.Marks) =
@@ -205,6 +239,14 @@
             then m else Marking.marks_diff m m'
         List.fold keep_mark_if_necessary m (decompose_marks m)
 
+    /// <summary>
+    /// Expand some marks, so that every constraint that can be deduced from others marked constraint is marked.
+    /// </summary>
+    /// <param name="md">The AST module</param>
+    /// <param name="mmd">A corresponding MinimalAST module (it does not matter which action is the main action)</param>
+    /// <param name="infos">Information about the types</param>
+    /// <param name="env">The environment</param>
+    /// <param name="m">The marks</param>
     let expand_marks (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) (m:Marking.Marks) =
         // We add every valid fun/diff constraint!
         let cs = z3_formula_for_constraints md mmd env m
@@ -315,6 +357,19 @@
         let f = List.fold (fun f (action,mmd) -> WPR.wpr_for_action mmd f action false) f init_actions
         WPR.Z3Not f
         
+    /// <summary>
+    /// Minimization of the constraints based on symbolic bounded verification. (see the 2016 IVy paper)
+    /// </summary>
+    /// <param name="md">The AST module</param>
+    /// <param name="mmd">A corresponding MinimalAST module (it does not matter which action is the main action)</param>
+    /// <param name="infos">Information about the types</param>
+    /// <param name="env">The environment</param>
+    /// <param name="actions">The list of actions to consider (in the format (name,mmd))</param>
+    /// <param name="init_actions">Actions used for initialization ('after init'), in the order of execution</param>
+    /// <param name="m">The marks to mnimize</param>
+    /// <param name="common_cvs">The concrete values that are shared between the environment of the counterexample and the allowed environments in 'alt_exec'</param>
+    /// <param name="alt_exec">The list of allowed executions in the format (marks,env)</param>
+    /// <param name="boundary">The boundary 'k' for the symbolic bounded verification</param>
     let sbv_based_minimization (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) actions init_actions (m:Marking.Marks) common_cvs (alt_exec:List<Marking.Marks*Model.Environment>) boundary =
 
         let save_m = m
