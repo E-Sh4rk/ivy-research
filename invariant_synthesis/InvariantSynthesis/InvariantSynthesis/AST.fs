@@ -2,10 +2,9 @@
 
     (* A VERY BASIC AST FOR IVY *)
 
-    // TODO: Test on new examples (verdi_lock, leader election...)
     // TODO: Optimize computation of WPR: use mutable AST for formulas so substitutions can be done in constant time
-
-    // TODO: Refactor: Make a new AST 'DeterministicAST' and get rid of all non-determinitstic cases in WPR, Interpreter & Marking
+    // TODO: Refactoring: Make a new AST 'DeterministicAST' and get rid of all non-determinitstic cases in WPR, Interpreter & Marking
+    // TODO: Refactoring: Remove InterpretedActions from ASTs... not used anymore
 
     // TODO: "while" loops
     // TODO: "if some" with multiple var decls
@@ -15,7 +14,7 @@
     // TODO: Handle functions with an object as return value (case of instance a(X):b(Y))
     // For that, we can consider those functions an instance of the corresponding module,
     // with an additionals first parameters for every var/fun/action/etc (that corresponds the parameters of the initial function)
-    // TODO: isolate, inductive, extract, interpret...
+    // TODO: Support some more keywords: isolate, inductive, extract, interpret...
     // TODO: Infer types for macro args (currently, type annotations is required)
 
     type Type =

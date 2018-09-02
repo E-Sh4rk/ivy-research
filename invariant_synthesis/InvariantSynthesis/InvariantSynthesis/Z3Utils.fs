@@ -239,7 +239,7 @@
                 | _ -> failwith "Solver returned an unknown status..."
 
         treat_exprs false es
-        // TODO: Eventually, choose the one with the smallest model.
+        // TODO: Choose the one with the smallest model.
        
     /// <summary>
     /// Checks whether a conjunction of Z3 expressions is satisfiable. If not, also returns a minimal unSAT core.
@@ -278,7 +278,7 @@
             (SAT s.Model, [])
         | _ -> failwith "Solver returned an unknown status..."
 
-    // TODO: Remove that function when a future (working) version of Z3 will take into account 'core.minimize'
+    // TODO: Remove this function when a future (working) version of Z3 will take into account 'core.minimize'
     /// <summary>
     /// See description of check_conjunction.
     /// </summary>

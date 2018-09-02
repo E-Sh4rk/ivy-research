@@ -31,6 +31,12 @@
         then sprintf "(%s)" str
         else str
 
+    /// <summary>
+    /// Converts a value to a string that can be printed to the user.
+    /// </summary>
+    /// <param name="decls">Declarations of the current module (see Model)</param>
+    /// <param name="v">The value to convert</param>
+    /// <param name="prec">The precedence of the context (use 0 if no context)</param>
     let rec value_to_string (decls:Model.Declarations) v prec =
         let fun_macro_to_string str vs rep =
             let str = 
