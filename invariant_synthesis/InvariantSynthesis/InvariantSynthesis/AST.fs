@@ -2,6 +2,9 @@
 
     (* A VERY BASIC AST FOR IVY *)
 
+    // TODO: Alternative method for finding valid executions: use symbolic bounded verification to check whether or not the current invariant is already correct or not.
+    // If not, we can retrieve a valid execution that does not satisfy the invariant.
+    // From that, we can compute the final state of this valid execution and rename its concrete values so that it matches all the shared constraints.
     // TODO: Optimize computation of WPR: use mutable AST for formulas so substitutions can be done in constant time
     // TODO: Refactoring: Make a new AST 'DeterministicAST' and get rid of all non-determinitstic cases in WPR, Interpreter & Marking
     // TODO: Refactoring: Remove InterpretedActions from ASTs... not used anymore

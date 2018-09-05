@@ -348,6 +348,19 @@ let main argv =
                 else
                     printfn "Monotonic counterexample: This invariant should already be correct!"
 
+                // If the counterexample was not monotonic but no allowed execution was found... it may be because of decidability issues
+                let (m,common_cvs) =
+                    if ad.md && List.isEmpty (!allowed_paths)
+                    then
+                        printfn "No allowed execution found... maybe for decidability reasons. In this case, would you like to consider the following model-dependent marks? (y/n)"
+                        printfn "%s" (Printer.marks_to_string decls env um)
+                        if (Console.ReadLine ()) = "y"
+                        then
+                            let m = Marking.marks_union m um
+                            (m, Formula.concrete_values_of_marks env m)
+                        else (m, common_cvs)
+                    else (m, common_cvs)
+
                 // Minimization (universal part) (optional)
                 printfn "Minimize universal part? (n:no/s:safe/h:hard/[0-9]:sbv)"
                 let m =

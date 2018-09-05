@@ -115,7 +115,7 @@
 
         let treat_formula (i,formula) =
             let f = WPR.Z3And (axioms_conjectures, WPR.wpr_for_action mmd (WPR.minimal_formula_to_z3 mmd formula) action true)
-            let res = check_z3_formula md (args_decl_of_action mmd action) f 3000
+            let res = check_z3_formula md (args_decl_of_action mmd action) f 5000
         
             counterexample :=
                 match res with
@@ -142,7 +142,7 @@
 
         let treat_formula (i,formula) =
             let fs = List.map (fun (action,mmd) -> (args_decl_of_action mmd action, action, WPR.wpr_for_action mmd (WPR.minimal_formula_to_z3 mmd formula) action true)) (Map.toList mmds)
-            let res = check_z3_disjunction md axioms_conjectures fs 3000
+            let res = check_z3_disjunction md axioms_conjectures fs 5000
             
             counterexample :=
                 match res with
@@ -212,7 +212,7 @@
         // All together
         let f = WPR.Z3And (WPR.Z3And(cs, trc), WPR.Z3And(f,valid_run))
         // Solve!
-        match check_z3_formula md (args_decl_of_action mmd action) f 3000 with
+        match check_z3_formula md (args_decl_of_action mmd action) f 25000 with
         | UNSAT | UNKNOWN -> None
         | SAT (i,e) -> Some (i,e)
 
@@ -241,6 +241,7 @@
 
     /// <summary>
     /// Expand some marks, so that every constraint that can be deduced from others marked constraint is marked.
+    /// Constraints involving some concrete values that are not already marked are not considered.
     /// </summary>
     /// <param name="md">The AST module</param>
     /// <param name="mmd">A corresponding MinimalAST module (it does not matter which action is the main action)</param>
@@ -248,7 +249,7 @@
     /// <param name="env">The environment</param>
     /// <param name="m">The marks</param>
     let expand_marks (md:AST.ModuleDecl<'a,'b>) (mmd:MinimalAST.ModuleDecl<'a,'b>) infos (env:Model.Environment) (m:Marking.Marks) =
-        // We add every valid fun/diff constraint!
+        let all_cvs = Formula.concrete_values_of_marks env m
         let cs = z3_formula_for_constraints md mmd env m
         let axioms_conjs = z3_formula_for_axioms_and_conjectures mmd
         let f = WPR.Z3And (cs, axioms_conjs)
@@ -263,8 +264,12 @@
                 | _ -> false
             | _ -> false
         let is_mark_valid m =
-            let f = z3_formula_for_constraints md mmd env m
-            is_formula_valid f
+            let cvs = Formula.concrete_values_of_marks env m
+            if Set.isSubset cvs all_cvs
+            then
+                let f = z3_formula_for_constraints md mmd env m
+                is_formula_valid f
+            else false
 
         let fm = List.map (fun (k,_) -> k) (Map.toList env.f) |> Set.ofList
         let diffs = Set.unionMany (List.map (fun t -> Marking.all_potential_diffs_for_type md.Types infos t) (AST.all_uninterpreted_types md.Types))

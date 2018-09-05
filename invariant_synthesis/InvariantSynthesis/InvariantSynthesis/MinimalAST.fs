@@ -29,6 +29,10 @@
     /// Descirbes a statement.
     /// This AST is minimal and does not contains any expression with side effect, so it is more conveninent to use for analysis.
     /// However, this AST can contain non-deterministic operations.
+    ///
+    /// Many MinimalAST statements can be necessary to simulate one AST statement (since side effects are not allowed in expressions).
+    /// For this reason, a new statement AtomicGroup has been introduced in order to group many MinimalAST statements corresponding to the same AST staement together.
+    /// This information is important in order to have better results when backpropagating marks (when there are many possibilities, the best option is choosen after having backpropagated the whole AtomicGroup).
     /// </summary>
     type Statement =
         | AtomicGroup of List<Statement>
